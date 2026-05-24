@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"sync/atomic"
+
+	"github.com/RavaszTamas/bootdev-chirpy-go/validation"
 )
 
 type apiConfig struct {
@@ -40,13 +42,15 @@ func writeErrorResponse(w http.ResponseWriter, code int, msg string) {
 	w.Write(message)
 }
 
-func writeValidResponse(w http.ResponseWriter) {
-	type validResponseBody struct {
-		Valid bool `json:"valid"`
+func writeValidResponse(body string, w http.ResponseWriter) {
+	type responseBody struct {
+		CleanedBody string `json:"cleaned_body"`
 	}
 
-	response := validResponseBody{
-		Valid: true,
+	body = validation.ReplaceBadWords(body)
+
+	response := responseBody{
+		CleanedBody: body,
 	}
 
 	message, err := json.Marshal(response)
@@ -114,7 +118,7 @@ func main() {
 			log.Printf("Chirp is too long %d", len(data.Body))
 			writeErrorResponse(w, 400, "Chirp is too long")
 		} else {
-			writeValidResponse(w)
+			writeValidResponse(data.Body, w)
 		}
 
 	})
