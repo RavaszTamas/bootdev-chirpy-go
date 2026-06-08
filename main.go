@@ -1,17 +1,23 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
 
+	"github.com/RavaszTamas/bootdev-chirpy-go/internal/database"
 	"github.com/RavaszTamas/bootdev-chirpy-go/validation"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -65,9 +71,27 @@ func writeValidResponse(body string, w http.ResponseWriter) {
 }
 
 func main() {
+	// -- env
+	godotenv.Load()
+
+	// -- db setup
+
+	dbUrl := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbUrl)
+
+	if err != nil {
+		log.Fatalf("Failed to open server connection: %v", err)
+	}
+
+	dbQueries := database.New(db)
+
+	// -- server setuo
+
 	mux := http.NewServeMux()
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
+		dbQueries:      dbQueries,
 	}
 	mux.Handle("/app/", http.StripPrefix("/app", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
 
