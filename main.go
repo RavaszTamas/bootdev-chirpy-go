@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/RavaszTamas/bootdev-chirpy-go/internal/database"
 	"github.com/RavaszTamas/bootdev-chirpy-go/validation"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -18,6 +20,14 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
+	platform       string
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -74,6 +84,8 @@ func main() {
 	// -- env
 	godotenv.Load()
 
+	platform := os.Getenv("PLATFORM")
+
 	// -- db setup
 
 	dbUrl := os.Getenv("DB_URL")
@@ -92,6 +104,7 @@ func main() {
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		dbQueries:      dbQueries,
+		platform:       platform,
 	}
 	mux.Handle("/app/", http.StripPrefix("/app", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
 
@@ -115,6 +128,15 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /admin/reset", func(w http.ResponseWriter, r *http.Request) {
+
+		if apiCfg.platform != "dev" {
+			w.Header().Add("Content-type", "text/plain; charset=utf-8")
+			w.WriteHeader(403)
+			w.Write([]byte("FORBIDDEN"))
+		}
+
+		apiCfg.dbQueries.DeleteAllUsers(r.Context())
+
 		w.Header().Add("Content-type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
 		w.Write([]byte("RESET"))
@@ -134,6 +156,7 @@ func main() {
 		if err != nil {
 			log.Printf("Error decoding request body %s", err)
 			writeErrorResponse(w, 500, "Something went wrong")
+			return
 		}
 
 		log.Printf("Obtained message %s", data.Body)
@@ -144,6 +167,54 @@ func main() {
 		} else {
 			writeValidResponse(data.Body, w)
 		}
+
+	})
+
+	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, r *http.Request) {
+		type requestData struct {
+			Email string `json:"email"`
+		}
+
+		decoder := json.NewDecoder(r.Body)
+
+		data := requestData{}
+
+		err := decoder.Decode(&data)
+
+		if err != nil {
+			log.Printf("Error decoding request body %s", err)
+			writeErrorResponse(w, 500, "Something went wrong")
+			return
+		}
+
+		log.Printf("Obtained message: %s", data.Email)
+
+		user, err := apiCfg.dbQueries.CreateUser(r.Context(), data.Email)
+
+		if err != nil {
+			log.Printf("Failed to create user: %v", err)
+			writeErrorResponse(w, 500, "Failed to create user")
+			return
+		}
+
+		responseUser := User{
+			ID:        user.ID,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email:     user.Email,
+		}
+
+		message, err := json.Marshal(responseUser)
+
+		if err != nil {
+			log.Printf("Failed to marshal user response %v", err)
+			writeErrorResponse(w, 500, "Failed to marshal response")
+			return
+		}
+
+		w.WriteHeader(201)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(message)
 
 	})
 
