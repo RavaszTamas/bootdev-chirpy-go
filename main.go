@@ -144,6 +144,7 @@ func main() {
 		}
 
 		apiCfg.dbQueries.DeleteAllUsers(r.Context())
+		apiCfg.dbQueries.DeleteAllChirps(r.Context())
 
 		w.Header().Add("Content-type", "text/plain; charset=utf-8")
 		w.WriteHeader(200)
@@ -207,6 +208,40 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(message)
 
+	})
+
+	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, r *http.Request) {
+		chirps, err := apiCfg.dbQueries.GetAllChirps(r.Context())
+
+		if err != nil {
+			log.Printf("Failed to create user: %v", err)
+			writeErrorResponse(w, 500, "Failed to get all chirps")
+			return
+		}
+
+		chirps_response := make([]Chirp, 0, len(chirps))
+
+		for _, elem := range chirps {
+			chirps_response = append(chirps_response, Chirp{
+				ID:        elem.ID,
+				CreatedAt: elem.CreatedAt,
+				UpdatedAt: elem.UpdatedAt,
+				Body:      elem.Body,
+				UserId:    elem.UserID,
+			})
+		}
+
+		message, err := json.Marshal(chirps_response)
+
+		if err != nil {
+			log.Printf("Failed to create user: %v", err)
+			writeErrorResponse(w, 500, "Failed to marshal response")
+			return
+
+		}
+		w.WriteHeader(200)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(message)
 	})
 
 	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, r *http.Request) {
