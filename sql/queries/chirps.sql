@@ -10,7 +10,10 @@ VALUES (
 
 
 -- name: GetAllChirps :many
-SELECT id, created_at, updated_at, body, user_id FROM chirps ORDER BY created_at ASC;
+SELECT * FROM chirps ORDER BY created_at ASC;
+
+-- name: GetChirpById :one
+SELECT * FROM chirps WHERE id = $1;
 
 -- name: DeleteAllChirps :exec
 DELETE FROM chirps;

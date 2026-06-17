@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -241,6 +242,49 @@ func main() {
 		}
 		w.WriteHeader(200)
 		w.Header().Set("Content-Type", "application/json")
+		w.Write(message)
+	})
+
+	mux.HandleFunc("GET /api/chirps/{chirpID}", func(w http.ResponseWriter, r *http.Request) {
+		chirpID := r.PathValue("chirpID")
+
+		id, err := uuid.Parse(chirpID)
+
+		if err != nil {
+			log.Printf("Failed to get parameter chirpID: %s. %v", chirpID, err)
+			writeErrorResponse(w, 400, fmt.Sprintf("Invalid parameter for chirpID: %s. Expecting UUID", chirpID))
+			return
+		}
+
+		chirp, err := apiCfg.dbQueries.GetChirpById(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				log.Printf("Chirp not found: %s", id)
+				writeErrorResponse(w, 404, fmt.Sprintf("Chirp not found: %s", id))
+				return
+			}
+
+			log.Printf("Database error: %v", err)
+			writeErrorResponse(w, 500, "internal server error")
+			return
+		}
+
+		message, err := json.Marshal(Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserId:    chirp.UserID,
+		})
+
+		if err != nil {
+			log.Printf("Failed to marshal response: %v", err)
+			writeErrorResponse(w, 404, "Failed to marshal response")
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
 		w.Write(message)
 	})
 
