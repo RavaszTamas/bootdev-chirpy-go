@@ -30,6 +30,14 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserId    uuid.UUID `json:"user_id"`
+}
+
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Add(1)
@@ -142,9 +150,10 @@ func main() {
 		w.Write([]byte("RESET"))
 	})
 
-	mux.HandleFunc("POST /api/validate_chirp", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/chirps", func(w http.ResponseWriter, r *http.Request) {
 		type requestData struct {
-			Body string `json:"body"`
+			Body   string    `json:"body"`
+			UserId uuid.UUID `json:"user_id"`
 		}
 
 		decoder := json.NewDecoder(r.Body)
@@ -164,9 +173,39 @@ func main() {
 		if len(data.Body) > 140 {
 			log.Printf("Chirp is too long %d", len(data.Body))
 			writeErrorResponse(w, 400, "Chirp is too long")
-		} else {
-			writeValidResponse(data.Body, w)
+			return
 		}
+
+		chirp, err := apiCfg.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
+			Body:   data.Body,
+			UserID: data.UserId,
+		})
+
+		if err != nil {
+			log.Printf("Error decoding request body %s", err)
+			writeErrorResponse(w, 500, "Something went wrong")
+			return
+		}
+
+		responseChirp := Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			UserId:    chirp.UserID,
+			Body:      chirp.Body,
+		}
+
+		message, err := json.Marshal(responseChirp)
+
+		if err != nil {
+			log.Printf("Failed to marshal user response %v", err)
+			writeErrorResponse(w, 500, "Failed to marshal response")
+			return
+		}
+
+		w.WriteHeader(201)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(message)
 
 	})
 
