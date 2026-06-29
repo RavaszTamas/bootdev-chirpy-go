@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/RavaszTamas/bootdev-chirpy-go/internal/auth"
 	"github.com/RavaszTamas/bootdev-chirpy-go/internal/database"
 	"github.com/google/uuid"
 )
@@ -70,16 +71,32 @@ func (apiCfg *apiConfig) handlerChirpsGetAll(w http.ResponseWriter, r *http.Requ
 }
 
 func (apiCfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
+
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		log.Printf("Missing bearer token %s", err)
+		writeErrorResponse(w, 401, "Missing bearer token")
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, apiCfg.tokenSecret)
+
+	if err != nil {
+		log.Printf("Invalid JWT %s", err)
+		writeErrorResponse(w, 401, "Invalid JWT")
+		return
+	}
+
 	type requestData struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
 
 	data := requestData{}
 
-	err := decoder.Decode(&data)
+	err = decoder.Decode(&data)
 
 	if err != nil {
 		log.Printf("Error decoding request body %s", err)
@@ -97,7 +114,7 @@ func (apiCfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Requ
 
 	chirp, err := apiCfg.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   data.Body,
-		UserID: data.UserId,
+		UserID: userID,
 	})
 
 	if err != nil {

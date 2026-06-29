@@ -18,6 +18,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
 	platform       string
+	tokenSecret    string
 }
 
 type User struct {
@@ -25,6 +26,7 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token     string    `json:"token"`
 }
 
 type Chirp struct {
@@ -41,6 +43,8 @@ func main() {
 
 	platform := os.Getenv("PLATFORM")
 
+	tokenSecret := os.Getenv("TOKEN_SECRET")
+
 	// -- db setup
 
 	dbUrl := os.Getenv("DB_URL")
@@ -56,11 +60,14 @@ func main() {
 	// -- server setuo
 
 	mux := http.NewServeMux()
+
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		dbQueries:      dbQueries,
 		platform:       platform,
+		tokenSecret:    tokenSecret,
 	}
+
 	mux.Handle("/app/", http.StripPrefix("/app", apiCfg.middlewareMetricsInc(http.FileServer(http.Dir(".")))))
 
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
