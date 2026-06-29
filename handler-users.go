@@ -1,14 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/RavaszTamas/bootdev-chirpy-go/internal/auth"
+	"github.com/RavaszTamas/bootdev-chirpy-go/internal/database"
 )
 
 func (apiCfg *apiConfig) handlerUserCreate(w http.ResponseWriter, r *http.Request) {
 	type requestData struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -23,9 +28,21 @@ func (apiCfg *apiConfig) handlerUserCreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	log.Printf("Obtained message: %s", data.Email)
+	hashedPassword, err := auth.HashPassword(data.Password)
 
-	user, err := apiCfg.dbQueries.CreateUser(r.Context(), data.Email)
+	if err != nil {
+		log.Printf("Failed to create user: %v", err)
+		writeErrorResponse(w, 500, "Failed to create user")
+		return
+	}
+
+	user, err := apiCfg.dbQueries.CreateUser(r.Context(), database.CreateUserParams{
+		Email: data.Email,
+		HashedPassword: sql.NullString{
+			String: hashedPassword,
+			Valid:  true,
+		},
+	})
 
 	if err != nil {
 		log.Printf("Failed to create user: %v", err)
