@@ -17,3 +17,10 @@ DELETE FROM users;
 SELECT * FROM users 
 WHERE 
     email = $1;
+
+
+
+-- name: GetUserFromRefreshToken :one
+SELECT u.* FROM users as u
+JOIN refresh_tokens as rf ON u.id = rf.user_id
+WHERE token = $1 AND revoked_at IS NULL;

@@ -22,11 +22,16 @@ type apiConfig struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
+}
+
+type Token struct {
+	Token string `json:"token"`
 }
 
 type Chirp struct {
@@ -85,6 +90,10 @@ func main() {
 	mux.HandleFunc("POST /api/users", apiCfg.handlerUserCreate)
 
 	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
+
+	mux.HandleFunc("POST /api/refresh", apiCfg.handleRefreshToken)
+
+	mux.HandleFunc("POST /api/revoke", apiCfg.handleRevokeRefreshToken)
 
 	server := http.Server{
 		Handler: mux,
